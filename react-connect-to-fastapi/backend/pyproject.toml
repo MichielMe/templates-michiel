@@ -1,7 +1,75 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "FastAPI Backend Application"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "fastapi[standard]>=0.115.12",
+    "uvicorn>=0.30.1",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.8.1",
+    "sqlalchemy>=2.0.40",
+    "python-multipart>=0.0.9",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.0.1",
+    "aiosqlite>=0.19.0",
+    "email-validator>=2.1.0",
+    "loguru>=0.7.2",
+    "greenlet>=3.1.1",
+    "pytest-asyncio>=0.26.0",
+]
+
+# Explicitly define which packages to include
+[tool.setuptools]
+packages = ["app"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.27.0",
+    "black>=24.2.0",
+    "isort>=5.13.2",
+    "mypy>=1.8.0",
+    "ruff>=0.1.15",
+]
+
+[build-system]
+requires = ["setuptools>=67.0.0", "wheel>=0.41.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::pytest_asyncio.plugin.PytestDeprecationWarning",
+    "ignore::DeprecationWarning:pytest_asyncio.plugin",
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20",
+]
+
+[tool.pytest-asyncio]
+asyncio_mode = "auto"
+default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+select = ["E", "F", "I"]

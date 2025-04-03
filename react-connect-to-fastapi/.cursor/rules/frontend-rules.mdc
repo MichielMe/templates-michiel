@@ -1,0 +1,1656 @@
+---
+description: 
+globs: *.js,*.jsx,*.html,*.css,*config.js,package.json
+alwaysApply: false
+---
+# React Project Guidelines
+
+## Table of Contents
+
+1. [Introduction](mdc:#introduction)
+2. [Modern React Development](mdc:#modern-react-development)
+   - [Functional Components Architecture](mdc:#functional-components-architecture)
+   - [React Hooks Usage](mdc:#react-hooks-usage)
+   - [Custom Hooks](mdc:#custom-hooks)
+   - [Component Organization](mdc:#component-organization)
+   - [State Management](mdc:#state-management)
+   - [Performance Optimization](mdc:#performance-optimization)
+   - [Error Handling](mdc:#error-handling)
+3. [TailwindCSS and DaisyUI Integration](mdc:#tailwindcss-and-daisyui-integration)
+   - [Setup and Configuration](mdc:#setup-and-configuration)
+   - [Theme Configuration](mdc:#theme-configuration)
+   - [Styling Guidelines](mdc:#styling-guidelines)
+   - [DaisyUI Component Usage](mdc:#daisyui-component-usage)
+   - [Responsive Design](mdc:#responsive-design)
+4. [Project Structure](mdc:#project-structure)
+   - [Directory Organization](mdc:#directory-organization)
+   - [Naming Conventions](mdc:#naming-conventions)
+   - [Imports and Exports](mdc:#imports-and-exports)
+   - [Code Splitting](mdc:#code-splitting)
+   - [Testing Architecture](mdc:#testing-architecture)
+5. [Code Quality Standards](mdc:#code-quality-standards)
+   - [Linting and Formatting](mdc:#linting-and-formatting)
+   - [Documentation](mdc:#documentation)
+   - [Type Safety and Prop Validation](mdc:#type-safety-and-prop-validation)
+   - [Accessibility (a11y)](mdc:#accessibility-a11y)
+   - [Code Review Process](mdc:#code-review-process)
+6. [Resources](mdc:#resources)
+
+---
+
+## Introduction
+
+This document provides comprehensive guidelines for building modern React applications with TailwindCSS and DaisyUI. It focuses on established best practices while offering pragmatic approaches for real-world development challenges.
+
+These guidelines are intended for all team members working on the project, from junior developers to senior engineers. They ensure consistency, maintainability, and high quality across the codebase.
+
+**How to Use These Guidelines:**
+- Consider these guidelines as strong recommendations rather than strict rules
+- Discuss any substantial deviations with the team
+- Use the provided examples as reference points for implementation
+- Update these guidelines as the project evolves and new patterns emerge
+
+---
+
+## Modern React Development
+
+### Functional Components Architecture
+
+**✅ DO:**
+- Use functional components as the default approach
+- Keep components focused on a single responsibility
+- Extract complex logic into custom hooks
+- Design components to be reusable when appropriate
+
+**❌ DON'T:**
+- Create class components unless absolutely necessary
+- Mix multiple concerns within a single component
+- Deeply nest components (max 3-4 levels of nesting)
+
+**Example:**
+
+```jsx
+// ✅ Good: Focused functional component
+const UserProfile = ({ userId }) => {
+  const { user, isLoading, error } = useUser(userId);
+  
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage message={error.message} />;
+  
+  return (
+    <div className="card">
+      <h2 className="card-title">{user.name}</h2>
+      <UserStats stats={user.stats} />
+      <UserActions userId={user.id} />
+    </div>
+  );
+};
+
+// ❌ Bad: Mixed concerns, complex nested logic
+const UserDashboard = ({ userId }) => {
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch(`/api/users/${userId}`);
+        const data = await response.json();
+        setUser(data);
+      } catch (err) {
+        setError(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchUser();
+  }, [userId]);
+  
+  // Complex rendering logic, mixed concerns
+  // ...
+};
+```
+
+### React Hooks Usage
+
+**Core Hooks Guidelines:**
+
+1. **useState**
+   - Use for simple component state
+   - Prefer multiple atomic state variables over a single complex state object
+   - Name state variables meaningfully (`[isLoading, setIsLoading]`, not `[loading, setLoading]`)
+
+```jsx
+// ✅ Good: Atomic state variables
+const [isLoading, setIsLoading] = useState(false);
+const [error, setError] = useState(null);
+const [users, setUsers] = useState([]);
+
+// ❌ Bad: Complex state object
+const [state, setState] = useState({
+  isLoading: false,
+  error: null,
+  users: []
+});
+```
+
+2. **useEffect**
+   - Always include a complete dependency array
+   - Keep effects focused on a single concern
+   - Clean up side effects when applicable
+   - Consider extracting complex effects into custom hooks
+
+```jsx
+// ✅ Good: Focused effect with cleanup
+useEffect(() => {
+  const controller = new AbortController();
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/data', { 
+        signal: controller.signal 
+      });
+      const data = await response.json();
+      setData(data);
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        setError(error);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  fetchData();
+  
+  return () => controller.abort();
+}, []);
+```
+
+3. **useContext**
+   - Use for sharing state that doesn't change frequently
+   - Keep contexts focused on specific domains (user, theme, etc.)
+   - Combine with useReducer for complex state management
+
+4. **useMemo & useCallback**
+   - Use for expensive calculations or to prevent unnecessary rerenders
+   - Don't overuse – only apply when there's a measurable performance benefit
+   - Always provide a complete dependency array
+
+```jsx
+// ✅ Good: Memoizing expensive calculation
+const sortedItems = useMemo(() => {
+  return [...items].sort((a, b) => a.value - b.value);
+}, [items]);
+
+// ✅ Good: Stable callback reference
+const handleSubmit = useCallback((values) => {
+  submitForm(values, userId);
+}, [userId]);
+```
+
+5. **useRef**
+   - Use for persistent values that don't trigger re-renders
+   - Use for DOM element references
+   - Avoid using refs as "escape hatches" from React's lifecycle
+
+### Custom Hooks
+
+**Guidelines:**
+- Extract reusable logic into custom hooks
+- Name custom hooks with the `use` prefix
+- Keep custom hooks focused on a specific concern
+- Design hooks to be composable when possible
+
+**Example:**
+
+```jsx
+// ✅ Good: Focused custom hook
+function useLocalStorage(key, initialValue) {
+  const [storedValue, setStoredValue] = useState(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(error);
+      return initialValue;
+    }
+  });
+
+  const setValue = (value) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return [storedValue, setValue];
+}
+
+// Usage
+const [theme, setTheme] = useLocalStorage('theme', 'light');
+```
+
+**Common Custom Hooks to Implement:**
+- `useFetch` - Data fetching with loading/error states
+- `useForm` - Form handling and validation
+- `useLocalStorage` - Persist data in local storage
+- `useWindowSize` - Respond to window resize events
+- `useMediaQuery` - Responsive design based on media queries
+- `useClickOutside` - Detect clicks outside a component
+
+### Component Organization
+
+**Component Types:**
+
+1. **UI Components**
+   - Presentational, focused on rendering UI elements
+   - Receive data via props
+   - Minimal to no state management
+   - Highly reusable
+
+2. **Container Components**
+   - Manage data fetching and state
+   - Connect to application state (context, etc.)
+   - Pass data to UI components
+   - Handle business logic
+
+3. **Page Components**
+   - Compose container and UI components
+   - Manage page-level state and effects
+   - Handle routing parameters
+
+4. **Layout Components**
+   - Structure the application's visual layout
+   - Provide consistent spacing and positioning
+   - Examples: Page, Section, Grid, etc.
+
+**Component File Structure:**
+
+```jsx
+// ComponentName.jsx
+import React from 'react';
+import PropTypes from 'prop-types';
+
+// Component implementation
+export const ComponentName = ({ prop1, prop2 }) => {
+  // ...implementation
+};
+
+// Prop types
+ComponentName.propTypes = {
+  prop1: PropTypes.string.isRequired,
+  prop2: PropTypes.number,
+};
+
+ComponentName.defaultProps = {
+  prop2: 0,
+};
+
+export default ComponentName;
+```
+
+### State Management
+
+**Guidelines:**
+- Use component state (useState) for simple, component-specific state
+- Use Context API for shared state across related components
+- Consider a lightweight solution like Zustand or Jotai for complex global state
+- Avoid unnecessary state – derive values when possible
+- Keep related state together
+
+**Context API Implementation Pattern:**
+
+```jsx
+// UserContext.jsx
+import { createContext, useContext, useReducer } from 'react';
+
+const UserContext = createContext();
+
+const initialState = {
+  user: null,
+  isLoading: false,
+  error: null,
+};
+
+function userReducer(state, action) {
+  switch (action.type) {
+    case 'FETCH_USER_START':
+      return { ...state, isLoading: true, error: null };
+    case 'FETCH_USER_SUCCESS':
+      return { ...state, isLoading: false, user: action.payload };
+    case 'FETCH_USER_ERROR':
+      return { ...state, isLoading: false, error: action.payload };
+    default:
+      return state;
+  }
+}
+
+export function UserProvider({ children }) {
+  const [state, dispatch] = useReducer(userReducer, initialState);
+  
+  const login = async (credentials) => {
+    dispatch({ type: 'FETCH_USER_START' });
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      });
+      const data = await response.json();
+      dispatch({ type: 'FETCH_USER_SUCCESS', payload: data });
+    } catch (error) {
+      dispatch({ type: 'FETCH_USER_ERROR', payload: error.message });
+    }
+  };
+
+  const logout = () => {
+    // Logout implementation
+  };
+  
+  return (
+    <UserContext.Provider value={{ ...state, login, logout }}>
+      {children}
+    </UserContext.Provider>
+  );
+}
+
+export function useUser() {
+  const context = useContext(UserContext);
+  if (context === undefined) {
+    throw new Error('useUser must be used within a UserProvider');
+  }
+  return context;
+}
+```
+
+### Performance Optimization
+
+**Techniques:**
+
+1. **Memoization**
+   - Use `React.memo` for expensive components
+   - Use `useMemo` for expensive calculations
+   - Use `useCallback` for stable callback references
+
+2. **Code Splitting**
+   - Use dynamic imports for route-based code splitting
+   - Lazy load components below the fold
+
+3. **Virtual Lists**
+   - Use virtualization for long lists (react-window, react-virtualized)
+
+4. **Optimizing Renders**
+   - Avoid unnecessary re-renders
+   - Use stable object references
+   - Extract frequently changing parts into separate components
+
+```jsx
+// ✅ Good: Memoization for complex component
+const ExpensiveComponent = React.memo(({ data }) => {
+  // Complex rendering
+});
+
+// ✅ Good: Virtualized list
+import { FixedSizeList } from 'react-window';
+
+const MyList = ({ items }) => (
+  <FixedSizeList
+    height={500}
+    width={400}
+    itemCount={items.length}
+    itemSize={50}
+  >
+    {({ index, style }) => (
+      <div style={style}>
+        {items[index].name}
+      </div>
+    )}
+  </FixedSizeList>
+);
+```
+
+### Error Handling
+
+**Strategies:**
+
+1. **Error Boundaries**
+   - Create reusable error boundary components
+   - Use at appropriate levels of the component tree
+   - Provide meaningful fallback UIs
+
+```jsx
+// ErrorBoundary.jsx
+import React from 'react';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Error caught by boundary:', error, errorInfo);
+    // Log to error reporting service
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || <div>Something went wrong. Please try again.</div>;
+    }
+
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;
+
+// Usage
+<ErrorBoundary fallback={<ErrorMessage />}>
+  <MyComponent />
+</ErrorBoundary>
+```
+
+2. **Async Error Handling**
+   - Use try/catch for async operations
+   - Create dedicated error states
+   - Provide user-friendly error messages
+
+```jsx
+const UserProfile = ({ userId }) => {
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await fetchUserData(userId);
+        setUser(data);
+      } catch (err) {
+        setError(err.message || 'Failed to load user data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, [userId]);
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage message={error} />;
+  if (!user) return <EmptyState message="No user found" />;
+
+  return <UserDetails user={user} />;
+};
+```
+
+---
+
+## TailwindCSS and DaisyUI Integration
+
+### Setup and Configuration
+
+**Base Configuration:**
+
+1. **Project Setup**
+   - Install TailwindCSS v4 and DaisyUI v5
+   ```bash
+   npm install -D tailwindcss@latest daisyui@latest
+   ```
+
+2. **CSS Configuration:**
+   ```css
+   /* main.css */
+   @import "tailwindcss";
+   @plugin "daisyui";
+   ```
+
+3. **DaisyUI Theme Configuration:**
+   ```css
+   /* main.css */
+   @import "tailwindcss";
+   @plugin "daisyui" {
+     themes: light --default, dark --prefersdark;
+     root: ":root";
+   }
+   ```
+
+### Theme Configuration
+
+**Custom Theme Setup:**
+
+```css
+/* main.css */
+@import "tailwindcss";
+@plugin "daisyui";
+@plugin "daisyui/theme" {
+  name: "apptheme";
+  default: true;
+  
+  /* Color System - Use OKLCH for better color representation */
+  --color-primary: oklch(55% 0.3 240);
+  --color-primary-content: oklch(98% 0.01 240);
+  --color-secondary: oklch(70% 0.25 200);
+  --color-secondary-content: oklch(98% 0.01 200);
+  --color-accent: oklch(65% 0.25 160);
+  --color-accent-content: oklch(98% 0.01 160);
+  
+  /* Base Colors */
+  --color-base-100: oklch(98% 0.02 240);
+  --color-base-200: oklch(95% 0.03 240);
+  --color-base-300: oklch(92% 0.04 240);
+  --color-base-content: oklch(20% 0.05 240);
+  
+  /* Neutral Colors */
+  --color-neutral: oklch(50% 0.05 240);
+  --color-neutral-content: oklch(98% 0.01 240);
+  
+  /* State Colors */
+  --color-info: oklch(70% 0.2 220);
+  --color-info-content: oklch(98% 0.01 220);
+  --color-success: oklch(65% 0.25 140);
+  --color-success-content: oklch(98% 0.01 140);
+  --color-warning: oklch(80% 0.25 80);
+  --color-warning-content: oklch(20% 0.05 80);
+  --color-error: oklch(65% 0.3 30);
+  --color-error-content: oklch(98% 0.01 30);
+  
+  /* UI Elements */
+  --radius-selector: 0.5rem; 
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+}
+```
+
+### Styling Guidelines
+
+**General Principles:**
+
+1. **Use Semantic Color Names**
+   - Prefer DaisyUI semantic colors (`primary`, `secondary`, etc.) over direct Tailwind colors (`red-500`, etc.)
+   - This ensures proper theme support and dark mode compatibility
+
+```jsx
+// ✅ Good: Using semantic colors
+<button className="btn btn-primary">Submit</button>
+
+// ❌ Bad: Using direct Tailwind colors
+<button className="btn bg-blue-500 text-white">Submit</button>
+```
+
+2. **Component Styling Structure**
+   - Apply component classes first
+   - Add part classes next
+   - Add modifier classes last
+   - Add Tailwind utility classes for specific customizations
+
+```jsx
+// ✅ Good: Proper class ordering
+<div className="card card-bordered bg-base-100 shadow-lg p-6">
+  <h2 className="card-title text-xl mb-4">Card Title</h2>
+  <div className="card-body px-0">Content here</div>
+</div>
+```
+
+3. **Utility Class Organization**
+   - Group related utility classes together
+   - Follow a consistent order: layout → spacing → sizing → typography → visual
+
+```jsx
+// ✅ Good: Organized utilities
+<div className="
+  /* Layout */
+  flex flex-col items-center justify-between
+  /* Spacing */
+  p-4 mb-6
+  /* Sizing */
+  w-full max-w-md
+  /* Typography */
+  text-lg font-medium
+  /* Visual */
+  bg-base-200 rounded-lg shadow-md
+">
+  Content
+</div>
+```
+
+4. **Responsive Design**
+   - Use Tailwind's responsive prefixes consistently
+   - Design mobile-first, then add tablet/desktop styles
+   - Group responsive variants together
+
+```jsx
+// ✅ Good: Mobile-first responsive design
+<div className="
+  grid grid-cols-1 
+  sm:grid-cols-2 
+  lg:grid-cols-3 
+  gap-4
+  p-4 sm:p-6 lg:p-8
+">
+  {items.map(item => (
+    <Card key={item.id} item={item} />
+  ))}
+</div>
+```
+
+5. **Custom Component Styles**
+   - Use Tailwind's @apply in component-specific CSS for complex, repeated patterns
+   - Keep custom CSS to a minimum
+
+```css
+/* ProductCard.css */
+.product-card {
+  @apply rounded-lg overflow-hidden border border-base-300 transition-shadow duration-300;
+}
+
+.product-card:hover {
+  @apply shadow-lg;
+}
+```
+
+### DaisyUI Component Usage
+
+**Best Practices:**
+
+1. **Component Selection**
+   - Use DaisyUI components for common UI elements
+   - Customize with Tailwind utilities when necessary
+   - Create custom components when DaisyUI doesn't provide a suitable option
+
+2. **Component Consistency**
+   - Maintain consistent use of DaisyUI components throughout the application
+   - Create wrapper components for frequently used DaisyUI components with custom styling
+
+**Example Implementations:**
+
+```jsx
+// Button.jsx - Wrapper component
+export const Button = ({ 
+  variant = 'primary',
+  size = 'md',
+  className = '',
+  children,
+  ...props
+}) => {
+  const variantClass = variant ? `btn-${variant}` : '';
+  const sizeClass = size ? `btn-${size}` : '';
+  
+  return (
+    <button 
+      className={`btn ${variantClass} ${sizeClass} ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};
+
+// Usage
+<Button variant="primary" size="lg">Submit</Button>
+<Button variant="outline">Cancel</Button>
+```
+
+**Common DaisyUI Components:**
+
+1. **Buttons**
+   ```jsx
+   <button className="btn btn-primary">Standard Button</button>
+   <button className="btn btn-outline btn-secondary">Outline Button</button>
+   <button className="btn btn-sm btn-ghost">Small Ghost Button</button>
+   ```
+
+2. **Cards**
+   ```jsx
+   <div className="card w-96 bg-base-100 shadow-xl">
+     <figure><img src="image.jpg" alt="Card Image" /></figure>
+     <div className="card-body">
+       <h2 className="card-title">Card Title</h2>
+       <p>Card description goes here</p>
+       <div className="card-actions justify-end">
+         <button className="btn btn-primary">Action</button>
+       </div>
+     </div>
+   </div>
+   ```
+
+3. **Form Elements**
+   ```jsx
+   <div className="form-control w-full max-w-xs">
+     <label className="label">
+       <span className="label-text">Email</span>
+     </label>
+     <input type="email" placeholder="Email" className="input input-bordered" />
+     <label className="label">
+       <span className="label-text-alt text-error">Error message</span>
+     </label>
+   </div>
+   ```
+
+4. **Alerts**
+   ```jsx
+   <div className="alert alert-success">
+     <span>Operation completed successfully!</span>
+   </div>
+   
+   <div className="alert alert-error">
+     <span>An error occurred. Please try again.</span>
+   </div>
+   ```
+
+### Responsive Design
+
+**Guidelines:**
+
+1. **Mobile-First Approach**
+   - Design for mobile devices first
+   - Add responsive variants for larger screens
+   - Use Tailwind's responsive prefixes consistently
+
+```jsx
+<div className="
+  /* Mobile (default) */
+  flex flex-col p-4
+  /* Tablet */
+  sm:flex-row sm:p-6
+  /* Desktop */
+  lg:justify-between lg:p-8
+">
+  <div className="w-full sm:w-1/2 lg:w-1/3">Sidebar</div>
+  <div className="w-full sm:w-1/2 lg:w-2/3">Main Content</div>
+</div>
+```
+
+2. **Responsive Component Design**
+   - Use responsive modifiers for DaisyUI components
+   - Create responsive variants for custom components
+
+```jsx
+// Responsive menu
+<ul className="menu menu-vertical lg:menu-horizontal">
+  <li><a>Item 1</a></li>
+  <li><a>Item 2</a></li>
+</ul>
+
+// Responsive grid
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+  {items.map(item => (
+    <ProductCard key={item.id} product={item} />
+  ))}
+</div>
+```
+
+3. **Breakpoint Consistency**
+   - Use Tailwind's default breakpoints consistently
+   - Document any custom breakpoints
+
+```jsx
+// Default Tailwind breakpoints
+// sm: 640px
+// md: 768px
+// lg: 1024px
+// xl: 1280px
+// 2xl: 1536px
+
+// Example
+<div className="
+  p-4 sm:p-6 md:p-8
+  text-sm sm:text-base lg:text-lg
+">
+  Responsive content
+</div>
+```
+
+---
+
+## Project Structure
+
+### Directory Organization
+
+**Recommended Structure:**
+
+```
+src/
+├── assets/              # Static assets (images, fonts)
+├── components/          # Reusable components
+│   ├── common/          # Truly reusable components
+│   ├── layout/          # Layout components (Page, Container, etc.)
+│   ├── forms/           # Form-related components
+│   └── [feature]/       # Feature-specific components
+├── context/             # Context providers
+├── hooks/               # Custom hooks
+├── pages/               # Page components (for routing)
+├── services/            # API and external service integrations
+├── styles/              # Global styles and theme configuration
+├── utils/               # Utility functions
+├── App.jsx              # Main App component
+└── main.jsx             # Entry point
+```
+
+**Feature-Based Organization:**
+
+For larger applications, consider organizing by feature:
+
+```
+src/
+├── common/              # Shared components, hooks, utils
+├── features/            # Feature modules
+│   ├── auth/            # Authentication feature
+│   │   ├── components/  # Auth-specific components
+│   │   ├── hooks/       # Auth-specific hooks
+│   │   ├── services/    # Auth-specific services
+│   │   └── pages/       # Auth-related pages
+│   ├── users/           # User management feature
+│   └── products/        # Product management feature
+├── pages/               # Route definitions
+├── App.jsx              # Main App component
+└── main.jsx             # Entry point
+```
+
+### Naming Conventions
+
+**Files:**
+- React Components: PascalCase (`UserProfile.jsx`)
+- Hooks: camelCase with `use` prefix (`useAuth.js`)
+- Utilities: camelCase (`formatDate.js`)
+- Context: PascalCase with `Context` suffix (`UserContext.jsx`)
+- Test files: Same as the file they test with `.test` or `.spec` suffix (`UserProfile.test.jsx`)
+
+**Components:**
+- Component names should be descriptive and PascalCase
+- Use prefixes for related components (`FormInput`, `FormSelect`, `FormCheckbox`)
+- Add suffixes for variants (`ButtonPrimary`, `ButtonSecondary`)
+
+**Props:**
+- Use descriptive camelCase names
+- Boolean props should have prefix like `is`, `has`, or `should` (`isDisabled`, `hasError`)
+- Event handler props should start with `on` followed by the event name (`onClick`, `onSubmit`)
+
+### Imports and Exports
+
+**Guidelines:**
+
+1. **Import Order**
+   - External dependencies first
+   - Internal absolute imports
+   - Internal relative imports
+   - CSS/asset imports
+
+```jsx
+// External dependencies
+import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
+
+// Internal absolute imports
+import { useAuth } from '@/hooks/useAuth';
+import { formatDate } from '@/utils/dateUtils';
+
+// Internal relative imports
+import { UserAvatar } from './UserAvatar';
+import { UserStats } from './UserStats';
+
+// CSS/asset imports
+import './UserProfile.css';
+```
+
+2. **Export Pattern**
+   - Use named exports for utilities and hooks
+   - Use default exports for React components
+   - Group related exports in index files
+
+```jsx
+// Component export
+import React from 'react';
+
+export const Button = ({ children, ...props }) => {
+  // Implementation
+};
+
+export default Button;
+
+// index.js for feature module
+export { default as Button } from './Button';
+export { default as Card } from './Card';
+export { default as Badge } from './Badge';
+```
+
+3. **Path Aliases**
+   - Set up path aliases for cleaner imports
+
+```jsx
+// vite.config.js
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+});
+
+// Usage
+import { Button } from '@/components/common';
+import { useAuth } from '@/hooks/useAuth';
+```
+
+### Code Splitting
+
+**Techniques:**
+
+1. **Route-Based Splitting**
+   - Lazy load routes for better initial load time
+
+```jsx
+import React, { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import LoadingSpinner from './components/common/LoadingSpinner';
+
+// Lazy loaded pages
+const Home = lazy(() => import('./pages/Home'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Profile = lazy(() => import('./pages/Profile'));
+
+const App = () => (
+  <BrowserRouter>
+    <Suspense fallback={<LoadingSpinner />}>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<Profile />} />
+      </Routes>
+    </Suspense>
+  </BrowserRouter>
+);
+
+export default App;
+```
+
+2. **Component-Based Splitting**
+   - Lazy load heavy components that aren't immediately visible
+
+```jsx
+import React, { lazy, Suspense, useState } from 'react';
+
+const HeavyChart = lazy(() => import('./components/HeavyChart'));
+
+const Dashboard = () => {
+  const [showChart, setShowChart] = useState(false);
+  
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <button onClick={() => setShowChart(true)}>Show Chart</button>
+      
+      {showChart && (
+        <Suspense fallback={<div>Loading chart...</div>}>
+          <HeavyChart />
+        </Suspense>
+      )}
+    </div>
+  );
+};
+```
+
+3. **Dynamic Imports for Non-Critical Resources**
+   - Load non-critical resources on demand
+
+```jsx
+const ExportToPDF = () => {
+  const handleExport = async () => {
+    try {
+      // Only load the PDF library when needed
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF();
+      
+      // PDF generation logic
+      
+      doc.save('document.pdf');
+    } catch (error) {
+      console.error('Failed to export PDF:', error);
+    }
+  };
+  
+  return <button onClick={handleExport}>Export to PDF</button>;
+};
+```
+
+### Testing Architecture
+
+**Testing Structure:**
+
+```
+src/
+├── components/
+│   ├── Button/
+│   │   ├── Button.jsx
+│   │   ├── Button.test.jsx   # Component tests
+│   │   └── index.js
+├── hooks/
+│   ├── useAuth.js
+│   └── useAuth.test.js       # Hook tests
+├── utils/
+│   ├── formatters.js
+│   └── formatters.test.js    # Utility tests
+└── __mocks__/               # Mock files for testing
+```
+
+**Testing Guidelines:**
+
+1. **Component Testing**
+   - Test component rendering
+   - Test component interactions (clicks, inputs)
+   - Test component props and variations
+   - Use React Testing Library
+
+```jsx
+// Button.test.jsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import Button from './Button';
+
+describe('Button', () => {
+  test('renders with correct text', () => {
+    render(<Button>Click me</Button>);
+    expect(screen.getByRole('button', { name: /click me/i })).toBeInTheDocument();
+  });
+  
+  test('calls onClick when clicked', () => {
+    const handleClick = jest.fn();
+    render(<Button onClick={handleClick}>Click me</Button>);
+    fireEvent.click(screen.getByRole('button'));
+    expect(handleClick).toHaveBeenCalledTimes(1);
+  });
+  
+  test('applies variant class correctly', () => {
+    render(<Button variant="primary">Button</Button>);
+    expect(screen.getByRole('button')).toHaveClass('btn-primary');
+  });
+});
+```
+
+2. **Hook Testing**
+   - Test hook behavior and state changes
+   - Use `renderHook` from React Testing Library
+
+```jsx
+// useCounter.test.js
+import { renderHook, act } from '@testing-library/react-hooks';
+import useCounter from './useCounter';
+
+describe('useCounter', () => {
+  test('initializes with correct value', () => {
+    const { result } = renderHook(() => useCounter(5));
+    expect(result.current.count).toBe(5);
+  });
+  
+  test('increments count correctly', () => {
+    const { result } = renderHook(() => useCounter(0));
+    act(() => {
+      result.current.increment();
+    });
+    expect(result.current.count).toBe(1);
+  });
+});
+```
+
+3. **Integration Testing**
+   - Test interactions between components
+   - Test complex user flows
+   - Mock external dependencies
+
+```jsx
+// LoginForm.test.jsx
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { AuthProvider } from '../../context/AuthContext';
+import LoginForm from './LoginForm';
+
+// Mock auth service
+jest.mock('../../services/authService', () => ({
+  login: jest.fn().mockResolvedValue({ user: { id: 1, name: 'Test User' } }),
+}));
+
+describe('LoginForm', () => {
+  test('submits form with correct credentials', async () => {
+    render(
+      <AuthProvider>
+        <LoginForm />
+      </AuthProvider>
+    );
+    
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'user@example.com' },
+    });
+    
+    fireEvent.change(screen.getByLabelText(/password/i), {
+      target: { value: 'password123' },
+    });
+    
+    fireEvent.click(screen.getByRole('button', { name: /login/i }));
+    
+    await waitFor(() => {
+      expect(screen.getByText(/welcome/i)).toBeInTheDocument();
+    });
+  });
+});
+```
+
+---
+
+## Code Quality Standards
+
+### Linting and Formatting
+
+**ESLint Configuration:**
+
+```js
+// .eslintrc.js
+module.exports = {
+  root: true,
+  env: {
+    browser: true,
+    es2021: true,
+    node: true,
+    jest: true,
+  },
+  extends: [
+    'eslint:recommended',
+    'plugin:react/recommended',
+    'plugin:react-hooks/recommended',
+    'plugin:jsx-a11y/recommended',
+    'prettier',
+  ],
+  parserOptions: {
+    ecmaFeatures: {
+      jsx: true,
+    },
+    ecmaVersion: 12,
+    sourceType: 'module',
+  },
+  plugins: ['react', 'react-hooks', 'jsx-a11y'],
+  rules: {
+    'react/react-in-jsx-scope': 'off',
+    'react/prop-types': 'error',
+    'react-hooks/rules-of-hooks': 'error',
+    'react-hooks/exhaustive-deps': 'warn',
+    'no-console': ['warn', { allow: ['warn', 'error'] }],
+    'jsx-a11y/anchor-is-valid': 'error',
+  },
+  settings: {
+    react: {
+      version: 'detect',
+    },
+  },
+};
+```
+
+**Prettier Configuration:**
+
+```js
+// .prettierrc
+{
+  "semi": true,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "es5",
+  "printWidth": 80,
+  "bracketSpacing": true,
+  "jsxBracketSameLine": false
+}
+```
+
+**Pre-commit Hook:**
+
+```json
+// package.json
+{
+  "scripts": {
+    "lint": "eslint src/**/*.{js,jsx}",
+    "lint:fix": "eslint src/**/*.{js,jsx} --fix",
+    "format": "prettier --write src/**/*.{js,jsx,css,md,json}"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "src/**/*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "src/**/*.{css,md,json}": [
+      "prettier --write"
+    ]
+  }
+}
+```
+
+### Documentation
+
+**Guidelines:**
+
+1. **Component Documentation**
+   - Document component purpose, props, and usage
+   - Use PropTypes or TypeScript for type documentation
+   - Provide usage examples
+
+```jsx
+/**
+ * Button - A reusable button component with multiple variants
+ *
+ * @component
+ * @example
+ * ```jsx
+ * <Button variant="primary" size="lg" onClick={handleClick}>
+ *   Click Me
+ * </Button>
+ * ```
+ */
+const Button = ({ 
+  variant = 'primary',
+  size = 'md',
+  children,
+  onClick,
+  disabled = false,
+  ...props
+}) => {
+  const variantClass = `btn-${variant}`;
+  const sizeClass = `btn-${size}`;
+  
+  return (
+    <button 
+      className={`btn ${variantClass} ${sizeClass}`}
+      onClick={onClick}
+      disabled={disabled}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};
+
+Button.propTypes = {
+  /** Button variant determining appearance */
+  variant: PropTypes.oneOf(['primary', 'secondary', 'accent', 'ghost', 'link']),
+  /** Button size */
+  size: PropTypes.oneOf(['xs', 'sm', 'md', 'lg', 'xl']),
+  /** Button content */
+  children: PropTypes.node.isRequired,
+  /** Click handler */
+  onClick: PropTypes.func,
+  /** Disables the button when true */
+  disabled: PropTypes.bool,
+};
+
+export default Button;
+```
+
+2. **Custom Hook Documentation**
+   - Document hook purpose, parameters, return values, and usage
+
+```jsx
+/**
+ * useLocalStorage - Custom hook to persist state in localStorage
+ *
+ * @param {string} key - The localStorage key to store data under
+ * @param {any} initialValue - The initial value if no value exists in localStorage
+ * @returns {Array} An array containing the current value and a setter function
+ *
+ * @example
+ * ```jsx
+ * const [theme, setTheme] = useLocalStorage('theme', 'light');
+ * // Later: setTheme('dark');
+ * ```
+ */
+function useLocalStorage(key, initialValue) {
+  // Implementation
+}
+```
+
+3. **Code Comments**
+   - Comment complex logic and non-obvious decisions
+   - Keep comments up-to-date with code changes
+   - Avoid comments that just repeat what the code does
+
+```jsx
+// ✅ Good: Explaining complex logic
+// Calculate price with volume discount tiers
+// - 0-10 items: no discount
+// - 11-50 items: 10% discount
+// - 51+ items: 15% discount
+const calculatePrice = (quantity, basePrice) => {
+  if (quantity > 50) {
+    return basePrice * quantity * 0.85;
+  } else if (quantity > 10) {
+    return basePrice * quantity * 0.9;
+  }
+  return basePrice * quantity;
+};
+
+// ❌ Bad: Stating the obvious
+// Set loading to true
+setLoading(true);
+```
+
+### Type Safety and Prop Validation
+
+**Guidelines:**
+
+1. **PropTypes Usage**
+   - Define PropTypes for all components
+   - Include required props
+   - Provide default values when appropriate
+
+```jsx
+import PropTypes from 'prop-types';
+
+const UserCard = ({ name, email, role, avatarUrl, isActive, onEdit }) => {
+  // Component implementation
+};
+
+UserCard.propTypes = {
+  name: PropTypes.string.isRequired,
+  email: PropTypes.string.isRequired,
+  role: PropTypes.oneOf(['admin', 'editor', 'viewer']),
+  avatarUrl: PropTypes.string,
+  isActive: PropTypes.bool,
+  onEdit: PropTypes.func,
+};
+
+UserCard.defaultProps = {
+  role: 'viewer',
+  avatarUrl: '/default-avatar.png',
+  isActive: true,
+  onEdit: () => {},
+};
+```
+
+2. **Complex Prop Validation**
+   - Use shape for object props
+   - Use arrayOf for array props
+   - Create custom validators for complex validations
+
+```jsx
+const ProductList = ({ products, onSelect }) => {
+  // Component implementation
+};
+
+ProductList.propTypes = {
+  products: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      name: PropTypes.string.isRequired,
+      price: PropTypes.number.isRequired,
+      category: PropTypes.string,
+      inStock: PropTypes.bool,
+    })
+  ).isRequired,
+  onSelect: PropTypes.func.isRequired,
+};
+```
+
+3. **TypeScript Integration (Optional)**
+   - Use TypeScript for strong type checking
+   - Create interfaces for component props
+   - Use generics for reusable components
+
+```tsx
+interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'accent' | 'ghost' | 'link';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+}
+
+const Button: React.FC<ButtonProps> = ({
+  variant = 'primary',
+  size = 'md',
+  children,
+  onClick,
+  disabled = false,
+  ...props
+}) => {
+  // Component implementation
+};
+```
+
+### Accessibility (a11y)
+
+**Guidelines:**
+
+1. **Semantic HTML**
+   - Use appropriate HTML elements (`button` for buttons, `a` for links)
+   - Use heading elements (`h1`-`h6`) properly
+   - Use lists (`ul`, `ol`) for related items
+
+```jsx
+// ✅ Good: Semantic HTML
+<article>
+  <h2>Article Title</h2>
+  <p>Article content...</p>
+  <button onClick={handleClick}>Read More</button>
+</article>
+
+// ❌ Bad: Non-semantic HTML
+<div>
+  <div className="title">Article Title</div>
+  <div>Article content...</div>
+  <div className="btn" onClick={handleClick}>Read More</div>
+</div>
+```
+
+2. **ARIA Attributes**
+   - Add `aria-label` for elements without visible text
+   - Add `aria-describedby` to associate additional descriptions
+   - Use `aria-expanded`, `aria-hidden`, etc. appropriately
+
+```jsx
+// Example: Accessible icon button
+<button 
+  aria-label="Close dialog"
+  onClick={closeDialog}
+>
+  <svg className="w-6 h-6" /* ... */ />
+</button>
+
+// Example: Form field with associated error
+<div>
+  <label htmlFor="email">Email</label>
+  <input 
+    id="email"
+    type="email"
+    aria-describedby="email-error"
+    aria-invalid={!!error}
+  />
+  {error && (
+    <p id="email-error" className="text-error">
+      {error}
+    </p>
+  )}
+</div>
+```
+
+3. **Keyboard Navigation**
+   - Ensure all interactive elements are keyboard accessible
+   - Implement focus management for complex interactions
+   - Add `tabIndex` only when necessary
+
+```jsx
+// Example: Modal with focus trap
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+
+const Modal = ({ isOpen, onClose, children }) => {
+  const modalRef = useFocusTrap(isOpen);
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div 
+      className="modal modal-open"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="modal-box" ref={modalRef}>
+        <button 
+          className="btn btn-sm btn-circle absolute right-2 top-2"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          ×
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+};
+```
+
+4. **Color and Contrast**
+   - Ensure sufficient color contrast (minimum 4.5:1 for normal text)
+   - Don't rely solely on color to convey information
+   - Test with color blindness simulators
+
+```jsx
+// Example: Form validation with multiple indicators
+<div className="form-control">
+  <label className="label" htmlFor="password">
+    <span className="label-text">Password</span>
+  </label>
+  <input 
+    id="password"
+    type="password"
+    className={`input input-bordered ${hasError ? 'input-error' : ''}`}
+  />
+  {hasError && (
+    <div className="flex items-center mt-1 text-error">
+      <svg className="w-4 h-4 mr-1" /* error icon */ />
+      <span>Password must be at least 8 characters</span>
+    </div>
+  )}
+</div>
+```
+
+5. **Form Accessibility**
+   - Use proper form elements (`label`, `fieldset`, `legend`)
+   - Associate labels with inputs using `htmlFor`
+   - Provide clear error messages
+
+```jsx
+<form onSubmit={handleSubmit}>
+  <fieldset>
+    <legend className="text-lg font-medium mb-4">Personal Information</legend>
+    
+    <div className="form-control mb-4">
+      <label className="label" htmlFor="name">
+        <span className="label-text">Full Name</span>
+      </label>
+      <input 
+        id="name"
+        type="text"
+        className="input input-bordered"
+        required
+      />
+    </div>
+    
+    {/* More form fields */}
+  </fieldset>
+  
+  <button type="submit" className="btn btn-primary">
+    Submit
+  </button>
+</form>
+```
+
+### Code Review Process
+
+**Review Checklist:**
+
+1. **Functionality**
+   - Does the code work as expected?
+   - Are edge cases handled?
+   - Is there proper error handling?
+
+2. **Code Quality**
+   - Is the code clean and readable?
+   - Are there any unnecessary complexity or duplications?
+   - Does it follow the project's coding standards?
+
+3. **Performance**
+   - Are there any potential performance issues?
+   - Is memoization used where appropriate?
+   - Are there unnecessary re-renders?
+
+4. **Security**
+   - Is user input properly validated?
+   - Are there any security vulnerabilities?
+   - Is sensitive data handled properly?
+
+5. **Accessibility**
+   - Are semantic HTML elements used appropriately?
+   - Are ARIA attributes provided when needed?
+   - Is keyboard navigation supported?
+
+6. **Testing**
+   - Are there sufficient tests?
+   - Do tests cover edge cases?
+   - Are tests readable and maintainable?
+
+**Review Format:**
+
+```
+## Code Review
+
+### Summary
+Brief overview of the changes and their purpose.
+
+### Observations
+- **Functionality**: [Observations about functionality]
+- **Code Quality**: [Observations about code quality]
+- **Performance**: [Observations about performance]
+- **Security**: [Observations about security]
+- **Accessibility**: [Observations about accessibility]
+- **Testing**: [Observations about tests]
+
+### Suggestions
+1. [Specific suggestion with reasoning]
+2. [Another suggestion]
+
+### Questions
+1. [Question about implementation choice]
+2. [Another question]
+
+### Overall
+[Final thoughts and approval/change request]
+```
+
+---
+
+## Resources
+
+- [React Official Documentation](mdc:https:/reactjs.org/docs/getting-started.html)
+- [TailwindCSS Documentation](mdc:https:/tailwindcss.com/docs)
+- [DaisyUI Documentation](mdc:https:/daisyui.com/docs)
+- [React Hooks Documentation](mdc:https:/reactjs.org/docs/hooks-intro.html)
+- [React Testing Library](mdc:https:/testing-library.com/docs/react-testing-library/intro)
+- [Web Content Accessibility Guidelines (WCAG)](mdc:https:/www.w3.org/WAI/standards-guidelines/wcag)
+- [ESLint Rules for React](mdc:https:/github.com/jsx-eslint/eslint-plugin-react)

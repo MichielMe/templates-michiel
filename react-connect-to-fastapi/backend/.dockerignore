@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv/
+venv/
+ENV/
+env/
+.coverage
+htmlcov/
+.pytest_cache/
+pytest.xml
+.mypy_cache/
+
+# Logs
+logs/*
+!logs/.gitignore
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db 
